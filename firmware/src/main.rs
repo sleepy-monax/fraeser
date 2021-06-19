@@ -18,7 +18,7 @@ enum Dir {
 
 struct Axis {
     pos: Step,
-    step: Millimeter,
+    step_size: Millimeter,
     dir: Dir,
 
     ena_pin: OutputPin,
@@ -49,9 +49,9 @@ impl Axis {
     fn step(&mut self, dir: Dir) {
         self.dir(dir);
         self.pul_pin.set_low();
-        sleep(Duration::from_secs_f64(0.001));
+        sleep(Duration::from_secs_f64(0.0005));
         self.pul_pin.set_high();
-        sleep(Duration::from_secs_f64(0.001));
+        sleep(Duration::from_secs_f64(0.0005));
 
         self.pos += match dir {
             Dir::Minus => -1,
@@ -62,6 +62,7 @@ impl Axis {
 
 struct Cutter {
     x_axis: Axis,
+    y_axis: Axis,
 }
 
 impl Cutter {
@@ -69,25 +70,37 @@ impl Cutter {
         self.x_axis.enabled(state);
     }
 
-    fn move_to(&mut self, x: Step) {
-        println!("[move_to] x:{}", x);
+    fn move_to(&mut self, x: Step, y: Step) {
+        println!("[move_to] x:{} y:{}", x, y);
 
-        while self.x_axis.pos != x {
-            let x_dir = if (x - self.x_axis.pos) > 0 {
-                Dir::Plus
-            } else {
-                Dir::Minus
-            };
+        while self.x_axis.pos != x || self.y_axis.pos != y {
+            if self.x_axis.pos != x {
+                let x_dir = if (x - self.x_axis.pos) > 0 {
+                    Dir::Plus
+                } else {
+                    Dir::Minus
+                };
 
-            self.x_axis.step(x_dir);
+                self.x_axis.step(x_dir);
+            }
+
+            if self.y_axis.pos != y {
+                let y_dir = if (y - self.y_axis.pos) > 0 {
+                    Dir::Plus
+                } else {
+                    Dir::Minus
+                };
+
+                self.y_axis.step(y_dir);
+            }
         }
     }
 
-    fn line_to(&mut self, x: Step) {
-        println!("[line to] x:{}", x);
+    fn line_to(&mut self, x: Step, y: Step) {
+        println!("[line to] x:{} y:{}", x, y);
 
         // TODO enabled cutter
-        self.move_to(x);
+        self.move_to(x, y);
         // TODO disable cutter
     }
 }
@@ -97,12 +110,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut cutter = Cutter {
         x_axis: Axis {
-            pos: 1,
-            step: 1, // 1 step = 1 milimiter
+            pos: 0,
+            step_size: 1, // 1 step = 1 milimiter
             dir: Dir::Minus,
             ena_pin: gpio.get(21)?.into_output(),
             dir_pin: gpio.get(20)?.into_output(),
             pul_pin: gpio.get(16)?.into_output(),
+        },
+        y_axis: Axis {
+            pos: 0,
+            step_size: 1, // 1 step = 1 milimiter
+            dir: Dir::Minus,
+            ena_pin: gpio.get(13)?.into_output(),
+            dir_pin: gpio.get(19)?.into_output(),
+            pul_pin: gpio.get(26)?.into_output(),
         },
     };
 
@@ -117,10 +138,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     for poly in polys {
         let start = poly[0];
 
-        cutter.move_to(start.x as i32);
+        cutter.move_to((start.x * 300.0) as i32, (start.y * 100.0) as i32);
 
         for line in &poly[1..] {
-            cutter.line_to((line.x * 100.0) as i32);
+            cutter.line_to((line.x * 300.0) as i32, (line.y * 100.0) as i32);
         }
     }
 
