@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 rppal = "0.12.0"
+svg2polylines = {git = "https://github.com/sleepy-monax/svg2polylines"}

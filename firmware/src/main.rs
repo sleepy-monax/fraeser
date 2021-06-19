@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::io::Read;
 use std::process;
 use std::thread::sleep;
 use std::time::Duration;
@@ -9,7 +10,7 @@ use rppal::gpio::OutputPin;
 type Step = i32;
 type Millimeter = i32;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 enum Dir {
     Minus,
     Plus,
@@ -48,7 +49,14 @@ impl Axis {
     fn step(&mut self, dir: Dir) {
         self.dir(dir);
         self.pul_pin.set_low();
+        sleep(Duration::from_secs_f64(0.001));
         self.pul_pin.set_high();
+        sleep(Duration::from_secs_f64(0.001));
+
+        self.pos += match dir {
+            Dir::Minus => -1,
+            Dir::Plus => 1,
+        };
     }
 }
 
@@ -62,18 +70,25 @@ impl Cutter {
     }
 
     fn move_to(&mut self, x: Step) {
-        println!("Moving to x:{}", x);
+        println!("[move_to] x:{}", x);
 
         while self.x_axis.pos != x {
-            let x_dir = if (self.x_axis.pos - x) > 0 {
+            let x_dir = if (x - self.x_axis.pos) > 0 {
                 Dir::Plus
             } else {
                 Dir::Minus
             };
 
             self.x_axis.step(x_dir);
-            sleep(Duration::from_millis(100));
         }
+    }
+
+    fn line_to(&mut self, x: Step) {
+        println!("[line to] x:{}", x);
+
+        // TODO enabled cutter
+        self.move_to(x);
+        // TODO disable cutter
     }
 }
 
@@ -93,7 +108,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     cutter.enabled(true);
 
-    cutter.move_to(256);
+    let mut file = std::fs::File::open("cat.svg").unwrap();
+    let mut s = String::new();
+    file.read_to_string(&mut s).unwrap();
+
+    let polys = svg2polylines::parse(&mut s, 0.1)?;
+
+    for poly in polys {
+        let start = poly[0];
+
+        cutter.move_to(start.x as i32);
+
+        for line in &poly[1..] {
+            cutter.line_to((line.x * 100.0) as i32);
+        }
+    }
 
     cutter.enabled(false);
 
