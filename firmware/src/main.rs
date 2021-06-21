@@ -68,6 +68,7 @@ struct Cutter {
 impl Cutter {
     fn enabled(&mut self, state: bool) {
         self.x_axis.enabled(state);
+        self.y_axis.enabled(state);
     }
 
     fn move_to(&mut self, x: Step, y: Step) {
@@ -133,7 +134,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut s = String::new();
     file.read_to_string(&mut s).unwrap();
 
-    let polys = svg2polylines::parse(&mut s, 0.1)?;
+    let polys = svg2polylines::parse(&mut s, 0.01)?;
 
     for poly in polys {
         let start = poly[0];
