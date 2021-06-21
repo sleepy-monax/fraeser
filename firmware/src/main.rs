@@ -1,3 +1,5 @@
+pub mod app;
+
 use std::error::Error;
 use std::io::Read;
 use std::process;
@@ -6,6 +8,7 @@ use std::time::Duration;
 
 use rppal::gpio::Gpio;
 use rppal::gpio::OutputPin;
+use turtle::{Point, Turtle};
 
 type Step = i32;
 type Millimeter = i32;
@@ -60,12 +63,42 @@ impl Axis {
     }
 }
 
-struct Cutter {
+trait Cutter {
+    fn enabled(&mut self, state: bool);
+    fn move_to(&mut self, x: Step, y: Step);
+    fn line_to(&mut self, x: Step, y: Step);
+}
+
+struct TurtleCutter {
+    turtle: Turtle,
+}
+
+impl Cutter for TurtleCutter {
+    fn enabled(&mut self, state: bool) {}
+
+    fn move_to(&mut self, x: Step, y: Step) {
+        self.turtle.pen_up();
+        self.turtle.go_to(Point {
+            x: x as f64,
+            y: -y as f64,
+        });
+    }
+
+    fn line_to(&mut self, x: Step, y: Step) {
+        self.turtle.pen_down();
+        self.turtle.go_to(Point {
+            x: x as f64,
+            y: -y as f64,
+        });
+    }
+}
+
+struct PlasmaCutter {
     x_axis: Axis,
     y_axis: Axis,
 }
 
-impl Cutter {
+impl Cutter for PlasmaCutter {
     fn enabled(&mut self, state: bool) {
         self.x_axis.enabled(state);
         self.y_axis.enabled(state);
@@ -107,9 +140,14 @@ impl Cutter {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let mut turtle_cutter = TurtleCutter {
+        turtle: Turtle::new(),
+    };
+
+    /*
     let gpio = Gpio::new()?;
 
-    let mut cutter = Cutter {
+    let mut plasma_cutter = PlasmaCutter {
         x_axis: Axis {
             pos: 0,
             step_size: 1, // 1 step = 1 milimiter
@@ -127,26 +165,35 @@ fn main() -> Result<(), Box<dyn Error>> {
             pul_pin: gpio.get(26)?.into_output(),
         },
     };
+    */
 
-    cutter.enabled(true);
+    turtle_cutter.enabled(true);
+    //plasma_cutter.enabled(true);
 
     let mut file = std::fs::File::open("cat.svg").unwrap();
     let mut s = String::new();
     file.read_to_string(&mut s).unwrap();
 
-    let polys = svg2polylines::parse(&mut s, 0.01)?;
+    let polys = svg2polylines::parse(&mut s, 0.001)?;
 
     for poly in polys {
         let start = poly[0];
 
-        cutter.move_to((start.x * 300.0) as i32, (start.y * 100.0) as i32);
+        turtle_cutter.move_to((start.x * 10.0) as i32, (start.y * 10.0) as i32);
+        //plasma_cutter.move_to((start.x * 300.0) as i32, (start.y * 300.0) as i32);
 
         for line in &poly[1..] {
-            cutter.line_to((line.x * 300.0) as i32, (line.y * 100.0) as i32);
+            turtle_cutter.line_to((line.x * 10.0) as i32, (line.y * 10.0) as i32);
+            //plasma_cutter.line_to((line.x * 300.0) as i32, (line.y * 300.0) as i32);
         }
     }
 
-    cutter.enabled(false);
+    turtle_cutter.move_to(0, 0);
+    // plasma_cutter.move_to(0, 0);
 
+    turtle_cutter.enabled(false);
+    // plasma_cutter.enabled(false);
+
+    sleep(Duration::from_secs(10));
     process::exit(0);
 }

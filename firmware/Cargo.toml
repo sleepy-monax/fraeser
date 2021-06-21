@@ -8,3 +8,5 @@ edition = "2018"
 [dependencies]
 rppal = "0.12.0"
 svg2polylines = {git = "https://github.com/sleepy-monax/svg2polylines"}
+turtle = "1.0.0-rc.3"
+gtk = "0.9.2"
