@@ -22,16 +22,16 @@ impl Cutter for TurtleCutter {
     fn move_to(&mut self, pos: Position<Millimeters>) {
         self.turtle.pen_up();
         self.turtle.go_to(Point {
-            x: pos.x.raw_value() as f64 * 10.0,
-            y: -pos.y.raw_value() as f64 * 10.0,
+            x: pos.x.raw_value() as f64,
+            y: -pos.y.raw_value() as f64,
         });
     }
 
     fn line_to(&mut self, pos: Position<Millimeters>) {
         self.turtle.pen_down();
         self.turtle.go_to(Point {
-            x: pos.x.raw_value() as f64 * 10.0,
-            y: -pos.y.raw_value() as f64 * 10.0,
+            x: pos.x.raw_value() as f64,
+            y: -pos.y.raw_value() as f64,
         });
     }
 }

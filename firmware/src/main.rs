@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //     y_pul_pin: 26,
     // })?;
 
-    let path = read_file_to_string("samples/cat.path");
+    let path = read_file_to_string("samples/circle.path");
     let job = Job::new(path.as_str());
     job.run(&mut turtle_cutter);
 

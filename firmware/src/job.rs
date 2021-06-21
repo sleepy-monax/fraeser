@@ -18,7 +18,7 @@ impl Job {
             actions: Vec::new(),
         };
 
-        let polys = svg2polylines::parse_path(path, 0.01).unwrap();
+        let polys = svg2polylines::parse_path(path, 0.5).unwrap();
 
         job.actions.push(Action::Begin);
 
