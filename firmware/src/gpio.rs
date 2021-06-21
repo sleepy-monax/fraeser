@@ -1,5 +1,6 @@
 use crate::{cutter::*, units::*};
 use rppal::gpio::*;
+use std::str::RSplitTerminator;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -7,10 +8,12 @@ pub struct GPIOPinLayout {
     pub x_ena_pin: u8,
     pub x_dir_pin: u8,
     pub x_pul_pin: u8,
+    pub x_stp_pin: u8,
 
     pub y_ena_pin: u8,
     pub y_dir_pin: u8,
     pub y_pul_pin: u8,
+    pub y_stp_pin: u8,
 }
 
 pub struct GPIOAxis {
@@ -21,6 +24,8 @@ pub struct GPIOAxis {
     pub ena_pin: OutputPin,
     pub dir_pin: OutputPin,
     pub pul_pin: OutputPin,
+
+    pub stp_pin: InputPin,
 }
 
 impl GPIOAxis {
@@ -35,15 +40,15 @@ impl GPIOAxis {
     pub fn dir(&mut self, dir: Dir) {
         if dir != self.dir {
             match dir {
-                Dir::Minus => self.dir_pin.set_high(),
-                Dir::Plus => self.dir_pin.set_low(),
+                Dir::Minus => self.dir_pin.set_low(),
+                Dir::Plus => self.dir_pin.set_high(),
             }
 
             self.dir = dir;
         }
     }
 
-    pub fn step(&mut self, dir: Dir) {
+    pub fn step(&mut self, dir: Dir) -> MoveResult {
         self.dir(dir);
         self.pul_pin.set_low();
         sleep(Duration::from_secs_f64(0.0005));
@@ -54,6 +59,12 @@ impl GPIOAxis {
             Dir::Minus => Steps(-1),
             Dir::Plus => Steps(1),
         };
+
+        if (self.stp_pin.is_low()) {
+            return MoveResult::Stopped;
+        }
+
+        return MoveResult::Done;
     }
 }
 
@@ -68,29 +79,33 @@ impl GPIOCutter {
             x_ena_pin,
             x_dir_pin,
             x_pul_pin,
+            x_stp_pin,
             y_ena_pin,
             y_dir_pin,
             y_pul_pin,
+            y_stp_pin,
         }: GPIOPinLayout,
     ) -> rppal::gpio::Result<GPIOCutter> {
-        let gpio = Gpio::new()?;
+        let mut gpio = Gpio::new()?;
 
         return Ok(GPIOCutter {
             x_axis: GPIOAxis {
                 pos: Steps(0),
-                millimeters_per_steps: Millimeters(1.0), // 1 step = 1 milimiter
+                millimeters_per_steps: Millimeters(0.04), // 1 step = 1 milimiter
                 dir: Dir::Minus,
                 ena_pin: gpio.get(x_ena_pin)?.into_output(),
                 dir_pin: gpio.get(x_dir_pin)?.into_output(),
                 pul_pin: gpio.get(x_pul_pin)?.into_output(),
+                stp_pin: gpio.get(x_stp_pin)?.into_input_pulldown(),
             },
             y_axis: GPIOAxis {
                 pos: Steps(0),
-                millimeters_per_steps: Millimeters(1.0), // 1 step = 1 milimiter
+                millimeters_per_steps: Millimeters(0.04), // 1 step = 1 milimiter
                 dir: Dir::Minus,
                 ena_pin: gpio.get(y_ena_pin)?.into_output(),
                 dir_pin: gpio.get(y_dir_pin)?.into_output(),
                 pul_pin: gpio.get(y_pul_pin)?.into_output(),
+                stp_pin: gpio.get(y_stp_pin)?.into_input_pulldown(),
             },
         });
     }
@@ -107,7 +122,7 @@ impl Cutter for GPIOCutter {
         self.y_axis.enabled(false);
     }
 
-    fn move_to(&mut self, pos: Position<Millimeters>) {
+    fn move_to(&mut self, pos: Position<Millimeters>) -> MoveResult {
         let final_x = pos.x.to_steps(self.x_axis.millimeters_per_steps);
         let final_y = pos.y.to_steps(self.x_axis.millimeters_per_steps);
 
@@ -119,7 +134,9 @@ impl Cutter for GPIOCutter {
                     Dir::Minus
                 };
 
-                self.x_axis.step(x_dir);
+                if (self.x_axis.step(x_dir) == MoveResult::Stopped) {
+                    return MoveResult::Stopped;
+                }
             }
 
             if self.y_axis.pos != final_y {
@@ -129,14 +146,24 @@ impl Cutter for GPIOCutter {
                     Dir::Minus
                 };
 
-                self.y_axis.step(y_dir);
+                if (self.y_axis.step(y_dir) == MoveResult::Stopped) {
+                    return MoveResult::Stopped;
+                }
             }
         }
+
+        return MoveResult::Done;
     }
 
-    fn line_to(&mut self, pos: Position<Millimeters>) {
+    fn line_to(&mut self, pos: Position<Millimeters>) -> MoveResult {
         // TODO enabled cutter
-        self.move_to(pos);
+        let result = self.move_to(pos);
+
+        if (result != MoveResult::Done) {
+            return result;
+        }
         // TODO disable cutter
+
+        return MoveResult::Done;
     }
 }

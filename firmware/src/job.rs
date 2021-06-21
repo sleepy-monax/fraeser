@@ -1,4 +1,7 @@
-use crate::{cutter::Cutter, units::*};
+use crate::{
+    cutter::{Cutter, MoveResult},
+    units::*,
+};
 
 pub enum Action {
     Begin,
@@ -58,12 +61,20 @@ impl Job {
                 Action::MoveTo { pos } => {
                     println!("[MOVE_TO] {:?}", pos);
 
-                    cutter.move_to(*pos)
+                    if cutter.move_to(*pos) != MoveResult::Done {
+                        println!("--- ABORTED ---");
+                        cutter.end();
+                        return;
+                    }
                 }
                 Action::LineTo { pos } => {
                     println!("[LINE_TO] {:?}", pos);
 
-                    cutter.line_to(*pos)
+                    if cutter.line_to(*pos) != MoveResult::Done {
+                        println!("--- ABORTED ---");
+                        cutter.end();
+                        return;
+                    }
                 }
                 Action::End => {
                     println!("[END]");
